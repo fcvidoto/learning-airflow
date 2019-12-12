@@ -1,49 +1,64 @@
+import random
 import datetime
 
-from airflow import models
-from airflow.operators import bash_operator
-from airflow.operators import python_operator
+import airflow
+from airflow.models import DAG
+from airflow.operators.bash_operator import BashOperator
+from airflow.operators.python_operator import PythonOperator
+from airflow.operators.dummy_operator import DummyOperator
 
 yesterday = datetime.datetime.combine(
 	datetime.datetime.today() - datetime.timedelta(1),
 	datetime.datetime.min.time()
 )
 
-default_args = {
-	'start_date': yesterday,
-	'retries': 1,
-	'retry_delay': datetime.timedelta(minutes=2)
+default_dag_args = {
+	'start_date': yesterday
+	# 'retries': 2,
+	# 'retry_delay': datetime.timedelta(minutes=2)
 }
 
-
-with models.DAG(
-	'python_and_bash_with_all_sucess_trigger',
+with DAG(
+	'branching_python_operator',
 	schedule_interval=datetime.timedelta(days=1),
-	default_args=default_args) as dag:
-
-	def hello_world():
-		raise ValueError('Oops! something went wrong.')
-		print('Hello World!')
-		return 1
-
+	default_args=default_dag_args) as dag:
+	
 	def greeting():
-		print('Greetings from SpikeySales! Happy shopping.')
-		return 'Greetings successfully printed.'
+		print('greeting')
+		return 'greeting'
 
-	hello_world_greeting = python_operator.PythonOperator(
-		task_id='python1',
-		python_callable=hello_world
+	def montaRandom():
+		x = 2 #random.radint(1,5)
+		if (x <= 2):
+			return 'menor que 2'
+		else:
+			return 'maior que 2'
+
+	runThisFirst = DummyOperator(task_id='runThisFirst')
+	branching = PythonOperator(
+		task_id='branching',
+		python_callable=montaRandom
 	)
 
-	spikeysales_greeting = python_operator.PythonOperator(
-		task_id='python_2',
+	runThisFirst >> branching
+
+	spikeyHello = PythonOperator(
+		task_id='spikeyHello',
 		python_callable=greeting
 	)
 
-	bash_greeting = bash_operator.BashOperator(
-		task_id='bye_bash',
-		bash_command='echo Goodbye! Hope to see you soon.', 
-		trigger_rule=trigger_rule.TriggerRule.ONE_FAILED
+	dummyDepoisPython = DummyOperator(task_id='dummyDepoisPython')
+
+	dummy = DummyOperator(task_id='dummy')
+
+	bashOi = BashOperator(
+		task_id='bashOi',
+		bash_command='echo fim',
+		trigger_rule='one_success'
 	)
 
-	hello_world_greeting >> spikeysales_greeting >> bash_greeting
+	branching >> spikeyHello >> dummyDepoisPython >> bashOi
+	branching >> dummy >> bashOi
+
+
+
